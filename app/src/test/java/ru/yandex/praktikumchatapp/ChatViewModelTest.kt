@@ -1,10 +1,17 @@
+import junit.framework.TestCase.assertTrue
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import org.hamcrest.CoreMatchers.equalTo
+import org.hamcrest.CoreMatchers.hasItem
+import org.hamcrest.MatcherAssert.assertThat
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -32,12 +39,25 @@ class ChatViewModelTest {
     @Test
     fun `send message should update messages with MyMessage`() = runTest {
         val message = Message.MyMessage("TestMessage")
-
+        viewModel.sendMyMessage(message.text)
+        advanceUntilIdle()
+        val actual = viewModel.messages
+        assertThat(actual.value,hasItem(message))
     }
 
     @Test
     fun testReceiveMessage_concurrentMessages() = runTest {
         val messagesToSend = (1..100).map { Message.MyMessage("Message $it") }
-
+        val jobs = messagesToSend.map {message ->
+            launch{
+                viewModel.sendMyMessage(message.text)
+            }
+        }
+        jobs.joinAll()
+        advanceUntilIdle()
+        val actual = viewModel.messages
+        assertThat(actual.value.size, equalTo(messagesToSend.size))
+        assertTrue(actual.value.containsAll(messagesToSend))
+        assertTrue(messagesToSend.containsAll(actual.value))
     }
 }
